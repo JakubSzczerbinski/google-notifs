@@ -1,7 +1,7 @@
 const fs = require('fs');
 const readline = require('readline');
 const {google} = require('googleapis');
-const gqlclient = require('graphql-client')({url : "http://192.168.1.109:4000/graphql"})
+const gqlclient = require('graphql-client')({url : "http://localhost:4000/graphql"})
 
 // If modifying these scopes, delete credentials.json.
 const SCOPES = ['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/calendar.readonly'];
