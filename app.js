@@ -162,7 +162,7 @@ function syncGmail(auth)
     notifs.map((notif, err) => {
       try {
         try {
-            JSON.parse(str);
+            JSON.parse(notif.data);
         } catch (e) {
             return;
         }
