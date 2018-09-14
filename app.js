@@ -1,7 +1,7 @@
 const fs = require('fs');
 const readline = require('readline');
 const {google} = require('googleapis');
-const gqlclient = require('graphql-client')({url : "http://192.168.1.109:4000/graphql"})
+const gqlclient = require('graphql-client')({url : "http://localhost:4000/graphql"})
 
 // If modifying these scopes, delete credentials.json.
 const SCOPES = ['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/calendar.readonly'];
@@ -131,8 +131,8 @@ function syncGmail(auth)
           {
             gqlclient.query(
               `
-                mutation addGmailNotif($title : String!, $subtitle: String!, $data : String!) {
-                  addNotif(data: $data, valid: true, title: $title, subtitle: $subtitle)
+                mutation addGmailNotif($title : String!, $subtitle: String!, $data : String!, $source : String!) {
+                  addNotif(data: $data, valid: true, title: $title, subtitle: $subtitle, source: $source)
                   {
                     data
                     id
@@ -141,7 +141,8 @@ function syncGmail(auth)
               `, {
                 title: "Gmail: " + getHeader(msg, "From").split("<")[0],
                 subtitle : getHeader(msg, "Subject"),
-                data : JSON.stringify({gmail_id : gmail_id})
+                data : JSON.stringify({gmail_id : gmail_id}),
+                source: 'gmail'
               }, () => { console.log ("added notif")}
             )
             .then ((body) => {
