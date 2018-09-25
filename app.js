@@ -102,7 +102,7 @@ function syncGmail(auth)
 
     gmail.users.messages.list({
       userId: 'me',
-      q: 'is:inbox AND is:unread AND (is:sent OR category:updates)'
+      q: 'is:inbox AND is:unread AND (is:sent OR category:updates OR category:personal)'
     }, (err, res) => {
       if (err) return console.log('The API returned an error: ' + err);
       const messages = res.data.messages;
