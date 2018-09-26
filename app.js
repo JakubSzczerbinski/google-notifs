@@ -199,24 +199,19 @@ function syncCalendar(auth) {
   }, (err, res) => {
     if (err) return console.log('The API returned an error: ' + err);
     const events = res.data.items;
-    if (events.length) {
-      console.log('Upcoming 10 events:');
-      let notifs = events.map((event, i) => {
-        return {
-          title: event.summary,
-          subtitle: event.start.dateTime + (event.location ? " @ " + event.location : ""),
-          id: event.id
-        }
-      });
-      sync(notifs);
-    } else {
-      console.log('No upcoming events found.');
-    }
+    let notifs = events.map((event, i) => {
+      return {
+        title: event.summary,
+        subtitle: event.start.dateTime + (event.location ? " @ " + event.location : ""),
+        id: event.id
+      }
+    });
+    sync(notifs);
   });
 }
 
 function syncNotif(auth) {
   setInterval(syncTasks, 10000, auth);
   setInterval(syncGmail, 10000, auth);
-  setInterval(syncCalendar, 100000, auth);
+  setInterval(syncCalendar, 10000, auth);
 }
