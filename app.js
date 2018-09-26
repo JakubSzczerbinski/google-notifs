@@ -4,7 +4,10 @@ const {google} = require('googleapis');
 const gqlclient = require('graphql-client')({url : "http://localhost:4000/graphql"})
 
 // If modifying these scopes, delete credentials.json.
-const SCOPES = ['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/calendar.readonly'];
+const SCOPES = 
+['https://www.googleapis.com/auth/gmail.readonly'
+,'https://www.googleapis.com/auth/calendar.readonly'
+,'https://www.googleapis.com/auth/tasks.readonly'];
 const TOKEN_PATH = 'credentials.json';
 const { notif_synchronizer } = require("./notif_synchronizer.js");
 console.log()
@@ -136,11 +139,60 @@ function syncGmail(auth)
   })
 }
 
+function syncTasks(auth)
+{
+  const sync = notif_synchronizer("gtasks", gqlclient);
+  const tasks = google.tasks({ version: 'v1', auth});
+
+  function getTaskNotifs()
+  {
+    console.log("Checking google tasks");
+
+    return tasks.tasklists.list({})
+    .then((res) => {
+      const lists = res.data.items;
+      if (!lists)
+      {
+        console.log("No tasklists");
+        return [];
+      }
+
+      return Promise.all(lists.map((list, i) => {
+        return tasks.tasks.list(
+        {
+          tasklist: list.id
+        })
+        .then((res) => {
+          const tasks = res.data.items;
+          return { 
+            title: list.title,
+            subtitle: tasks.map((task, i) => task.title + '<br>').reduce((acc, el) => acc + el, ''),
+            id : list.id + list.updated
+          }
+        })
+        .catch((err) => console.log(err));
+      }))
+    })
+    .catch((err) => console.log(err))
+  }
+  getTaskNotifs()
+  .then((notifs) => {
+    sync(notifs);
+  })
+  .catch((err) => {
+    console.log(err);
+  })
+}
+
 function syncCalendar(auth) {
  const calendar = google.calendar({version: 'v3', auth});
+ const sync = notif_synchronizer("google cal", gqlclient);
+ let tomorrow = new Date();
+ tomorrow.setDate(tomorrow.getDate() + 1);
   calendar.events.list({
     calendarId: 'primary',
     timeMin: (new Date()).toISOString(),
+    timeMax: tomorrow.toISOString(),
     maxResults: 10,
     singleEvents: true,
     orderBy: 'startTime',
@@ -149,11 +201,14 @@ function syncCalendar(auth) {
     const events = res.data.items;
     if (events.length) {
       console.log('Upcoming 10 events:');
-      events.map((event, i) => {
-        // const start = event.start.dateTime || event.start.date;
-        console.log(event);
-        // console.log(`${start} - ${event.summary}`);
+      let notifs = events.map((event, i) => {
+        return {
+          title: event.summary,
+          subtitle: event.start.dateTime + (event.location ? " @ " + event.location : ""),
+          id: event.id
+        }
       });
+      sync(notifs);
     } else {
       console.log('No upcoming events found.');
     }
@@ -161,9 +216,7 @@ function syncCalendar(auth) {
 }
 
 function syncNotif(auth) {
-  syncGmail(auth);
+  setInterval(syncTasks, 10000, auth);
   setInterval(syncGmail, 10000, auth);
-
-  // syncCalendar(auth);
-  // setInterval(syncCalendar, 100000, auth);
+  setInterval(syncCalendar, 100000, auth);
 }

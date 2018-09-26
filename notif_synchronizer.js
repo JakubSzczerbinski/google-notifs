@@ -78,7 +78,7 @@ exports.notif_synchronizer = function (source_, gqlclient_)
             isInCurrentNotifs = true;
           }
         }
-        if (!isInCurrentNotifs)
+        if (!isInCurrentNotifs && notifFromApi.source == source)
           invalidate_notif(notifFromApi.id);
       }
 
