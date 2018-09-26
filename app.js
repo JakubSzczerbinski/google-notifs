@@ -185,29 +185,47 @@ function syncTasks(auth)
 }
 
 function syncCalendar(auth) {
- const calendar = google.calendar({version: 'v3', auth});
- const sync = notif_synchronizer("google cal", gqlclient);
- let tomorrow = new Date();
- tomorrow.setDate(tomorrow.getDate() + 1);
-  calendar.events.list({
-    calendarId: 'primary',
-    timeMin: (new Date()).toISOString(),
-    timeMax: tomorrow.toISOString(),
-    maxResults: 10,
-    singleEvents: true,
-    orderBy: 'startTime',
-  }, (err, res) => {
-    if (err) return console.log('The API returned an error: ' + err);
-    const events = res.data.items;
-    let notifs = events.map((event, i) => {
-      return {
-        title: event.summary,
-        subtitle: event.start.dateTime + (event.location ? " @ " + event.location : ""),
-        id: event.id
-      }
+  const calendar = google.calendar({version: 'v3', auth});
+  const sync = notif_synchronizer("google cal", gqlclient);
+  let tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 7);
+  calendar.calendarList.list({},
+    (err, res) => {
+      if (err) return console.log('The API returned an error: ' + err);
+      const calendars = res.data.items;
+      const promisedNotifs = Promise.all(calendars.map((cal, i) => {
+        return calendar.events.list({
+          calendarId: cal.id,
+          timeMin: (new Date()).toISOString(),
+          timeMax: tomorrow.toISOString(),
+          maxResults: 10,
+          singleEvents: true,
+          orderBy: 'startTime',
+        })
+        .then((res) => {
+          const options = { weekday: 'short', month: 'short', day: 'numeric' };
+          const events = res.data.items;
+          let notifs = events.map((event, i) => {
+            const eventDate = new Date(event.start.dateTime);
+            return {
+              title: event.summary,
+              subtitle: eventDate.toLocaleTimeString("en-UK", options) + (event.location ? " @ " + event.location : ""),
+              id: event.id
+            }
+          });
+          return notifs;
+        })
+        .catch((err) => {
+          console.log('The API returned an error: ' + err);
+          return [];
+        });
+      }));
+      promisedNotifs.then((notifs) => {
+        const allNotifs = notifs.reduce((acc, el) => acc.concat(el), []);
+        sync(allNotifs);
+      })
+      .catch((err) => console.log('err'))
     });
-    sync(notifs);
-  });
 }
 
 function syncNotif(auth) {
