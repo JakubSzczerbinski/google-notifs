@@ -1,11 +1,13 @@
 const fs = require('fs');
 const readline = require('readline');
 const {google} = require('googleapis');
-const gqlclient = require('graphql-client')({url : "http://localhost:4000/graphql"})
+const gqlclient = require('graphql-client')({url : "http://192.168.109:4000/graphql"})
 
 // If modifying these scopes, delete credentials.json.
 const SCOPES = ['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/calendar.readonly'];
 const TOKEN_PATH = 'credentials.json';
+const { notif_synchronizer } = require("./notif_synchronizer.js");
+console.log()
 
 // Load client secrets from a local file.
 fs.readFile('client_secret.json', (err, content) => {
@@ -77,141 +79,61 @@ function getHeader(msg, headerName)
 
 function syncGmail(auth)
 {
+  const sync = notif_synchronizer("gmail", gqlclient);
   const gmail = google.gmail({version: 'v1', auth});
-  gqlclient.query(
-    `
-      query {
-        allValidNotifs {
-          id
-          data
-        }
-      }
-    `, {})
-  .then(function(body) {
-    const notifs = body.data.allValidNotifs;
-    removeNotifs(notifs);
-    addNotifs(notifs);
-  })
-  .catch(function(err) {
-    console.log(err.message)
-  })
 
-  function addNotifs(notifs)
+  function getGmailNotifs()
   {
-    console.log("Chcecking gmail inbox");
+    console.log("Checking gmail inbox");
 
-    gmail.users.messages.list({
+    return gmail.users.messages.list({
       userId: 'me',
       q: 'is:inbox AND is:unread AND (is:sent OR category:updates OR category:personal)'
-    }, (err, res) => {
-      if (err) return console.log('The API returned an error: ' + err);
+    })
+    .then((res) => {
+      // if (err) return console.log(err);
       const messages = res.data.messages;
-      if (!messages)
-        return console.log("Inbox empty");
-      messages.map((message, i) => {
+      // console.log(messages);
+      if (!messages){
+        console.log("Inbox empty");
+        return [];
+      }
+      return Promise.all(messages.map((message, i) => {
         let msg_id = message.id;
-        gmail.users.messages.get(
-        {
-          userId: 'me',
-          id: msg_id,
-          format: 'full'
-        }, (err, res) => {
-          const msg = res.data;
-          const gmail_id = msg.id;
-          let has_notif = false;
-          notifs.map((notif, err) => {
-            try {
-              const data = JSON.parse(notif.data);
-              if (data && data.gmail_id && data.gmail_id === gmail_id)
-                has_notif = true;
-            }
-            catch (e) {}
-          });
-          if (!has_notif)
-          {
-            gqlclient.query(
-              `
-                mutation addGmailNotif($title : String!, $subtitle: String!, $data : String!, $source : String!) {
-                  addNotif(data: $data, valid: true, title: $title, subtitle: $subtitle, source: $source)
-                  {
-                    data
-                    id
-                  }
-                }
-              `, {
-                title: "Gmail: " + getHeader(msg, "From").split("<")[0],
-                subtitle : getHeader(msg, "Subject"),
-                data : JSON.stringify({gmail_id : gmail_id}),
-                source: 'gmail'
-              }, () => { console.log ("added notif")}
-            )
-            .then ((body) => {
-              console.log(body);
-            })
-            .catch((err) => {
-              console.log(err.message);
-            });
-          }
-        });
-      });
-    });
-  }
-
-  function removeNotifs(notifs)
-  {
-    notifs.map((notif, err) => {
-      try {
-        try {
-            JSON.parse(notif.data);
-        } catch (e) {
-            return;
-        }
-        const data = JSON.parse(notif.data);
-        if (data && data.gmail_id)
-        { 
-          gmail.users.messages.get(
+        return gmail.users.messages.get(
           {
             userId: 'me',
-            id: data.gmail_id,
+            id: msg_id,
             format: 'full'
-          }, (err, res) => {
-            if (err) return console.log("Failed to fetch");
-            const labels = res.data.labelIds;
-            let is_unread = false;
-            labels.map((label, i) => {
-              if (label == "UNREAD")
-                is_unread = true;
-            });
-            if (!is_unread)
-            {
-              gqlclient.query(
-                `
-                  mutation removeGmailNotif($id : Int!) {
-                    invalidateNotif(id : $id)
-                    {
-                      data
-                      id
-                    }
-                  }
-                `, {
-                  id: notif.id
-                }, () => { console.log ("removed notif")}
-              )
-              .then ((body) => {
-                console.log(body);
-              })
-              .catch((err) => {
-                console.log(err.message);
-              });
-            }
-          });
-        }
-      }
-      catch (e) {
-        console.log(e);
-      }
-    });
+          })
+        .then((res) => {
+          const msg = res.data;
+          return {
+            title: "Gmail: " + getHeader(msg, "From").split("<")[0],
+            subtitle: getHeader(msg, "Subject"),
+            id: msg.id
+          }
+        })
+        .catch((err) => {
+          console.log("Request for id " + msg_id + " failed. Error:");
+          console.log(err);
+          return {};
+        })
+      }));
+    })
+    .catch((err) => {
+      console.log("Request for gmail messages failed. Error: " + err.messages)    
+      return [];
+    })
   }
+
+  getGmailNotifs()
+  .then((notifs) => {
+    sync(notifs);
+  })
+  .catch((err) => {
+    console.log(err.messages);
+  })
 }
 
 function syncCalendar(auth) {
@@ -242,6 +164,6 @@ function syncNotif(auth) {
   syncGmail(auth);
   setInterval(syncGmail, 10000, auth);
 
-  syncCalendar(auth);
+  // syncCalendar(auth);
   // setInterval(syncCalendar, 100000, auth);
 }
