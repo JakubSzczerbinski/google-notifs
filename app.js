@@ -198,7 +198,7 @@ function syncCalendar(auth) {
           calendarId: cal.id,
           timeMin: (new Date()).toISOString(),
           timeMax: tomorrow.toISOString(),
-          maxResults: 10,
+          maxResults: 7,
           singleEvents: true,
           orderBy: 'startTime',
         })
@@ -206,11 +206,17 @@ function syncCalendar(auth) {
           const options = { weekday: 'short', month: 'short', day: 'numeric' };
           const events = res.data.items;
           let notifs = events.map((event, i) => {
+            const data = {
+              startDateTime: event.start.dateTime,
+              endDateTime: event.end.dateTime,
+              location: event.location,
+            }
             const eventDate = new Date(event.start.dateTime);
             return {
               title: event.summary,
               subtitle: eventDate.toLocaleTimeString("en-UK", options) + (event.location ? " @ " + event.location : ""),
-              id: event.id
+              id: event.id,
+              data : data
             }
           });
           return notifs;

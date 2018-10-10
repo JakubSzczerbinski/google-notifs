@@ -5,6 +5,10 @@ exports.notif_synchronizer = function (source_, gqlclient_)
   const source = source_;
   const add_notif = function(notif)
   {
+    let data = notif.data;
+    if (!data) {
+      data = {};
+    } 
     gqlclient.query(
       `
         mutation addNotif($title : String!, $subtitle: String!, $data : String!, $source : String!) {
@@ -17,7 +21,7 @@ exports.notif_synchronizer = function (source_, gqlclient_)
       `, {
         title: notif.title,
         subtitle : notif.subtitle,
-        data : JSON.stringify({id : notif.id}),
+        data : JSON.stringify({id : notif.id, data : notif.data }),
         source: source
       }, () => { console.log ("added notif")}
     )
